@@ -1,0 +1,10 @@
+name = "unicorn-runner"
+compatibility_date = "2024-01-01"
+
+# Pages Functions KV binding
+# After creating a KV namespace via:
+#   npx wrangler kv namespace create LEADERBOARD
+# Replace the placeholder ID below with the actual namespace ID.
+[[kv_namespaces]]
+binding = "LEADERBOARD"
+id = "placeholder-replace-with-real-kv-id"

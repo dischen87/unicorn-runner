@@ -1,4 +1,4 @@
-const CACHE_NAME = 'unicorn-runner-v1';
+const CACHE_NAME = 'unicorn-runner-v2';
 
 const PRECACHE_URLS = [
   '/',
@@ -35,6 +35,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
+
+  // Never cache API requests — always go to network
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/')) return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

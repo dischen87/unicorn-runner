@@ -37,7 +37,7 @@ function getPlayerId(): string {
 }
 
 export class LeaderboardService {
-  private static API_URL = import.meta.env.VITE_API_URL || ''; // Set via env or setApiUrl()
+  private static API_URL = import.meta.env.VITE_API_URL || '/api'; // Same-origin Pages Functions by default
 
   /** Submit a score — always saves locally, optionally sends to server */
   static async submitScore(entry: NewScoreEntry): Promise<void> {
