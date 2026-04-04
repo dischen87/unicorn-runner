@@ -1,3 +1,5 @@
+import { getPlayer } from '../utils/storage';
+
 const STORAGE_KEY = 'unicorn-runner-leaderboard-v2';
 const MAX_LOCAL_ENTRIES = 100;
 
@@ -19,6 +21,12 @@ function generateId(): string {
 }
 
 function getPlayerId(): string {
+  // Use the unified player ID from storage.ts
+  const player = getPlayer();
+  if (player) {
+    return player.id;
+  }
+  // Fallback for legacy: check old key
   const key = 'unicorn-runner-player-id';
   let id = localStorage.getItem(key);
   if (!id) {
@@ -29,7 +37,7 @@ function getPlayerId(): string {
 }
 
 export class LeaderboardService {
-  private static API_URL = ''; // Empty = local-only mode
+  private static API_URL = import.meta.env.VITE_API_URL || ''; // Set via env or setApiUrl()
 
   /** Submit a score — always saves locally, optionally sends to server */
   static async submitScore(entry: NewScoreEntry): Promise<void> {
@@ -95,6 +103,44 @@ export class LeaderboardService {
   /** Check if online mode is active */
   static isOnline(): boolean {
     return this.API_URL.length > 0;
+  }
+
+  /** Sync unsynced local scores to the server (call once on startup or reconnect) */
+  static async syncLocalToServer(): Promise<void> {
+    if (!this.API_URL) return;
+
+    const SYNCED_KEY = 'unicorn-runner-synced';
+    if (localStorage.getItem(SYNCED_KEY)) return; // Already synced
+
+    const localEntries = this.getLocal(MAX_LOCAL_ENTRIES);
+    if (localEntries.length === 0) return;
+
+    let anySuccess = false;
+    for (const entry of localEntries) {
+      try {
+        const res = await fetch(this.API_URL + '/scores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            playerName: entry.playerName,
+            playerId: entry.playerId,
+            score: entry.score,
+            level: entry.level,
+            unicorn: entry.unicorn,
+            fartCount: entry.fartCount,
+          }),
+        });
+        if (res.ok) anySuccess = true;
+        // Rate limit: small delay between submissions
+        await new Promise(r => setTimeout(r, 200));
+      } catch {
+        break; // Stop syncing if offline
+      }
+    }
+
+    if (anySuccess) {
+      localStorage.setItem(SYNCED_KEY, new Date().toISOString());
+    }
   }
 
   // --- Local storage methods ---

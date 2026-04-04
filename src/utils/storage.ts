@@ -1,7 +1,39 @@
 const HIGH_SCORE_KEY = 'unicorn-runner-highscore';
 const LEADERBOARD_KEY = 'unicorn-runner-leaderboard';
 const PLAYER_KEY = 'unicorn-runner-player';
+const PLAYER_COOKIE = 'unicorn-runner-player';
 const MAX_LEADERBOARD_ENTRIES = 20;
+
+// ── Cookie helpers (shared between browser & PWA contexts) ──
+
+function setPlayerCookie(player: Player): void {
+  try {
+    const encoded = encodeURIComponent(JSON.stringify(player));
+    // Cookie expires in 10 years
+    const expires = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `${PLAYER_COOKIE}=${encoded}; expires=${expires}; path=/; SameSite=Lax`;
+  } catch {
+    // Cookie write failed — not critical
+  }
+}
+
+function getPlayerFromCookie(): Player | null {
+  try {
+    const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${PLAYER_COOKIE}=([^;]+)`));
+    if (!match) return null;
+    const parsed = JSON.parse(decodeURIComponent(match[1])) as Player;
+    if (parsed && parsed.name && parsed.id) {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function clearPlayerCookie(): void {
+  document.cookie = `${PLAYER_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+}
 
 // ── Player management ──
 
@@ -21,11 +53,21 @@ function generateUUID(): string {
 
 export function getPlayer(): Player | null {
   try {
+    // Try localStorage first
     const raw = localStorage.getItem(PLAYER_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Player;
-    if (parsed && parsed.name && parsed.id) {
-      return parsed;
+    if (raw) {
+      const parsed = JSON.parse(raw) as Player;
+      if (parsed && parsed.name && parsed.id) {
+        // Ensure cookie is in sync
+        setPlayerCookie(parsed);
+        return parsed;
+      }
+    }
+    // Fallback: restore from cookie (handles browser -> PWA migration)
+    const cookiePlayer = getPlayerFromCookie();
+    if (cookiePlayer) {
+      localStorage.setItem(PLAYER_KEY, JSON.stringify(cookiePlayer));
+      return cookiePlayer;
     }
     return null;
   } catch {
@@ -40,11 +82,13 @@ export function setPlayer(name: string): Player {
     createdAt: new Date().toISOString(),
   };
   localStorage.setItem(PLAYER_KEY, JSON.stringify(player));
+  setPlayerCookie(player);
   return player;
 }
 
 export function clearPlayer(): void {
   localStorage.removeItem(PLAYER_KEY);
+  clearPlayerCookie();
 }
 
 export interface LeaderboardEntry {
